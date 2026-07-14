@@ -1,0 +1,29 @@
+# Repositorio de auditoría: solo se versiona el do-file, la base y la trazabilidad.
+# Todo lo demás se ignora para mantenerlo limpio.
+
+# Datos crudos (58 MB de PDFs/Excel oficiales) — no se suben en esta versión
+data/raw/
+
+# Motor de Python, salidas, documentos de trabajo y borradores
+python/
+output/
+docs/
+scripts/
+agentes/
+agentes/
+*.docx
+~$*
+
+# Series intermedias y archivos de trabajo dentro de processed/ (solo va base_cda.* y sources.md)
+data/processed/*_mensual.csv
+data/processed/cda_*.csv
+data/processed/LIBRO_DE_FUENTES.csv
+data/processed/AUDITORIA.md
+data/processed/CORRECCIONES_auditor.csv
+data/processed/base_derivada_python.csv
+data/processed/cda365_*.csv
+
+# Sistema / temporales
+.DS_Store
+Thumbs.db
+*.tmp
