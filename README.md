@@ -11,7 +11,9 @@ Este repositorio contiene la **base de datos** y el **do-file de Stata** para au
 
 | Archivo | Descripción |
 |---|---|
-| `Scavone_Fernandez_Entrega_FINAL_365.docx` | Documento de la tesis (versión final). |
+| `Scavone_Fernandez_Tesis_FINAL_2026-07-17.docx` | Documento de la tesis (VERSIÓN CANÓNICA, ver MANIFIESTO.md). |
+| `MANIFIESTO.md` | Versión canónica congelada: SHA-256 de cada archivo de entrega. |
+| `data/raw/` | Archivos crudos oficiales descargados (boletines BCP, Anexo, TPM, FRED). |
 | `stata/tesis_cda.do` | Do-file de Stata 17. Implementa las 7 etapas del análisis econométrico. |
 | `data/processed/base_cda.csv` | Base trimestral, 84 observaciones (2004T1–2024T4). Formato principal. |
 | `data/processed/base_cda.xlsx` | Misma base, formato Excel. |

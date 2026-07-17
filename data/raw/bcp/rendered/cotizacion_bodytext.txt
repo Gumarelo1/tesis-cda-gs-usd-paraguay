@@ -1,0 +1,75 @@
+Implementación de Política Monetaria 
+Letras de Regulación Monetaria 
+Mercado de Dinero 
+Mercado de Divisas 
+Operaciones Forward 
+Curvas de Mercado 
+BCP Home
+Cotización Mercado Fluctuante Histórica 
+
+Los tipos de cambio compra y venta en el Mercado Fluctuante con Clientes No Financieros del dólar americano con respecto al guaraní se calculan considerando las operaciones de entidades financieras con agentes económicos no financieros en el mercado spot, que involucren montos desde USD 50.000. Para los tipos de cambio (compra/venta) "Acumulado" se utilizan operaciones registradas desde el inicio del día hasta la hora correspondiente indicada. Por su parte los tipos de cambio (compra/venta) por "Corte de Horario" incluyen en su cálculo solamente las operaciones registradas en cada tramo de media hora.
+Resolución N° 26, Acta N° 58 de fecha 18 de diciembre de 2025.
+
+Las publicaciones están sujetas a modificaciones de acuerdo a las correcciones que realicen las entidades financieras, a partir de los reportes generados en el sistema electrónico utilizado para informar las transacciones, DATATEC u otro autorizado por el BCP.
+
+
+
+
+
+Seleccione un Año
+2026
+2025
+2024
+2023
+2022
+2021
+2020
+2019
+2018
+2017
+2016
+2015
+2014
+2013
+2012
+Tipo de Operación
+Compra
+Venta
+ CONSULTAR PDF PLANILLA
+PLANILLA DE COTIZACIONES DEL AÑO - MERCADO LIBRE FLUCTUANTE - COMPRA
+#	ENE	FEB	MAR	ABR	MAY	JUN	JUL	AGO	SEP	OCT	NOV	DIC
+1	ND	ND	ND	6.475,64	ND	6.059,02	ND	ND	ND	ND	ND	ND
+2	6.719,39	6.621,68	ND	ND	ND	6.114,46	ND	ND	ND	ND	ND	ND
+3	ND	6.615,58	6.498,07	ND	ND	6.096,49	ND	ND	ND	ND	ND	ND
+4	ND	6.602,09	6.542,67	ND	6.046,87	6.106,41	ND	ND	ND	ND	ND	ND
+5	6.746,68	6.600,21	6.539,45	ND	6.179,09	6.147,25	ND	ND	ND	ND	ND	ND
+6	6.613,04	6.591,16	6.426,62	6.479,63	6.240,84	ND	ND	ND	ND	ND	ND	ND
+7	6.498,87	ND	ND	6.485,16	6.163,84	ND	ND	ND	ND	ND	ND	ND
+8	6.509,76	ND	ND	6.449,97	6.147,68	6.150,29	ND	ND	ND	ND	ND	ND
+9	6.610,24	6.579,28	6.505,02	6.465,73	ND	6.171,61	ND	ND	ND	ND	ND	ND
+10	ND	6.596,99	6.487,90	6.400,31	ND	6.147,11	ND	ND	ND	ND	ND	ND
+11	ND	6.575,56	6.469,60	ND	6.096,45	6.121,55	ND	ND	ND	ND	ND	ND
+12	6.758,81	6.555,30	6.446,15	ND	6.107,31	ND	ND	ND	ND	ND	ND	ND
+13	6.784,17	6.531,94	6.486,67	6.394,21	6.086,81	ND	ND	ND	ND	ND	ND	ND
+14	6.750,99	ND	ND	6.385,52	ND	ND	ND	ND	ND	ND	ND	ND
+15	6.702,55	ND	ND	6.377,76	ND	6.095,98	ND	ND	ND	ND	ND	ND
+16	6.656,89	6.435,21	6.473,50	6.368,90	ND	6.110,26	ND	ND	ND	ND	ND	ND
+17	ND	6.473,08	6.460,05	6.371,80	ND	6.086,48	ND	ND	ND	ND	ND	ND
+18	ND	6.478,93	6.493,97	ND	6.118,61	6.128,28	ND	ND	ND	ND	ND	ND
+19	6.674,95	6.459,93	6.521,39	ND	6.153,29	6.093,57	ND	ND	ND	ND	ND	ND
+20	6.696,54	6.451,46	6.531,28	6.355,07	6.161,01	ND	ND	ND	ND	ND	ND	ND
+21	6.730,37	ND	ND	6.274,14	6.086,27	ND	ND	ND	ND	ND	ND	ND
+22	6.684,28	ND	ND	6.324,25	6.198,85	ND	ND	ND	ND	ND	ND	ND
+23	6.714,14	6.449,65	6.534,34	6.334,88	ND	6.102,75	ND	ND	ND	ND	ND	ND
+24	ND	6.435,48	6.504,46	6.300,15	ND	6.108,32	ND	ND	ND	ND	ND	ND
+25	ND	6.454,42	6.535,74	ND	6.130,98	6.095,89	ND	ND	ND	ND	ND	ND
+26	6.695,92	6.447,21	6.533,62	ND	6.114,13	6.085,03	ND	ND	ND	ND	ND	ND
+27	6.714,98	6.450,30	6.515,21	6.252,39	6.057,46	ND	ND	ND	ND	ND	ND	ND
+28	6.705,26	ND	ND	6.210,67	6.014,13	ND	ND	ND	ND	ND	ND	ND
+29	6.689,78	ND	ND	6.135,86	6.011,46	6.069,32	ND	ND	ND	ND	ND	ND
+30	6.642,19	ND	6.470,78	5.981,47	ND	ND	ND	ND	ND	ND	ND	ND
+31	ND	ND	6.480,64	ND	ND	ND	ND	ND	ND	ND	ND	ND
+
+(*) ND - No disponible.
+
+© 2026 | Tel +(595) 21 608011 | Correo info@bcp.gov.py

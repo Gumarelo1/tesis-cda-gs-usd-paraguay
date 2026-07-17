@@ -2,7 +2,7 @@
 # Todo lo demás se ignora para mantenerlo limpio.
 
 # Datos crudos (58 MB de PDFs/Excel oficiales) — no se suben en esta versión
-data/raw/
+# data/raw/  (incluidos para auditoría: crudos oficiales)
 
 # Motor de Python, salidas, documentos de trabajo y borradores
 python/

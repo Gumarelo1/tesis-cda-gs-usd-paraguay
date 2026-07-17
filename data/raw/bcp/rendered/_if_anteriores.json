@@ -1,0 +1,20 @@
+{
+  "if_anteriores_en": {
+    "url": "https://www.bcp.gov.py/en/informe-de-indicadores-financieros-anteriores",
+    "restricted": false,
+    "nDocs": 0,
+    "docs": []
+  },
+  "if_anteriores_es": {
+    "url": "https://www.bcp.gov.py/informe-de-indicadores-financieros-anteriores",
+    "restricted": false,
+    "nDocs": 0,
+    "docs": []
+  },
+  "tasas_interes_dash": {
+    "url": "https://www.bcp.gov.py/en/tasas-de-interes-",
+    "restricted": false,
+    "nDocs": 0,
+    "docs": []
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "anexo_informe_economico_i365": {
+    "url": "https://www.bcp.gov.py/anexo-estadistico-del-informe-economico-i365",
+    "ok": true,
+    "err": "",
+    "htmlLen": 152846,
+    "cloudflare": false,
+    "nDocs": 0,
+    "docs": []
+  },
+  "anexo_indicadores_financieros_i367": {
+    "url": "https://www.bcp.gov.py/anexo-estadistico-indicadores-financieros-i367",
+    "ok": true,
+    "err": "",
+    "htmlLen": 152941,
+    "cloudflare": false,
+    "nDocs": 0,
+    "docs": []
+  },
+  "ipc": {
+    "url": "https://www.bcp.gov.py/web/institucional/indice-de-precios-al-consumidor-ipc",
+    "ok": true,
+    "err": "",
+    "htmlLen": 301916,
+    "cloudflare": false,
+    "nDocs": 0,
+    "docs": []
+  },
+  "tipo_de_cambio": {
+    "url": "https://www.bcp.gov.py/web/institucional/tipo-de-cambio",
+    "ok": true,
+    "err": "",
+    "htmlLen": 290778,
+    "cloudflare": false,
+    "nDocs": 0,
+    "docs": []
+  },
+  "estadisticas_monetarias": {
+    "url": "https://www.bcp.gov.py/web/institucional/estadisticas-monetarias-y-financieras",
+    "ok": true,
+    "err": "",
+    "htmlLen": 295392,
+    "cloudflare": false,
+    "nDocs": 0,
+    "docs": []
+  },
+  "implementacion_politica_monetaria": {
+    "url": "https://www.bcp.gov.py/web/institucional/implementacion-de-politica-monetaria",
+    "ok": true,
+    "err": "",
+    "htmlLen": 292148,
+    "cloudflare": false,
+    "nDocs": 0,
+    "docs": []
+  },
+  "boletines_estadisticos_i62": {
+    "url": "https://www.bcp.gov.py/boletines-estadisticos-i62",
+    "ok": true,
+    "err": "",
+    "htmlLen": 152020,
+    "cloudflare": false,
+    "nDocs": 0,
+    "docs": []
+  }
+}
