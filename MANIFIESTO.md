@@ -6,7 +6,7 @@ Cualquier otro archivo con nombre similar es una versión anterior archivada (ca
 
 | Archivo | SHA-256 |
 |---|---|
-| `Scavone_Fernandez_Tesis_FINAL_2026-07-17.docx` | `ab8d067047f2d0384c32ef13e4a1dbad5fea722b94aabf4453095508afab4f41` |
+| `Scavone_Fernandez_Tesis_FINAL_2026-07-17.docx` | `360d1dd7dec881bcc19928bf0268e9aa053765fcdfb3f6a16aa177e9a2db6dbd` |
 | `stata/tesis_cda.do` | `458a73b845a0dda56eaeb1c08e157e62ed51f9a015022fd316f80ce8a157cd08` |
 | `data/processed/base_cda.csv` | `f5700221ca2ccab9389e0e3285b0cfc68d67864ee91bfd4b487ef4087b19631e` |
 | `data/processed/base_cda.xlsx` | `7f2d7d0096d75fa9b9dae65736970986f7d2ac26bccb6b05a5d0e386e7c48f75` |
@@ -24,6 +24,12 @@ Cualquier otro archivo con nombre similar es una versión anterior archivada (ca
 - **Datos crudos oficiales** en `data/raw/` (boletines de tasas, Anexo Estadístico, TPM.xlsx, FRED).
 - **Trazabilidad:** hojas `diccionario` y `fuentes_trazabilidad` dentro de `base_cda.xlsx`,
   y `data/processed/sources.md`.
+
+## Rev. 3.1 — bibliografia APA reordenada + figuras nativas de Stata en el Word
+- Bibliografia reordenada alfabeticamente (APA 7): las entradas del BCP quedan agrupadas por año
+  y U.S. Bureau of Labor Statistics al final; sin cambios de contenido, solo de orden.
+- Las 3 figuras del cuerpo (8.1, 8.2, 8.3) se reemplazaron por las versiones nativas de Stata
+  (output/figuras/Figura_8_*.png), con correccion de aspecto. Hash del Word actualizado.
 
 ## Rev. 3 — cerrada (migración al corte 2011T2; do-file y Word consistentes)
 - **Decisión del autor (responde al hallazgo M3 del profesor):** el corte institucional
