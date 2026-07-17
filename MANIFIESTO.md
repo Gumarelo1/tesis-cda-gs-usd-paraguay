@@ -1,12 +1,12 @@
 # MANIFIESTO DE ENTREGA — versión canónica
 
-**Fecha de congelamiento:** 17/07/2026 (rev. 3.1: corte 2011:T2, bibliografía APA ordenada, figuras de Stata)
+**Fecha de congelamiento:** 17/07/2026 (rev. 3.2: reencuadre de la hipótesis — migración de la naturaleza del riesgo)
 **Regla:** estos son los únicos archivos válidos para depósito, auditoría y defensa.
 Cualquier otro archivo con nombre similar es una versión anterior archivada (carpeta `archivo_versiones/`).
 
 | Archivo | SHA-256 |
 |---|---|
-| `Scavone_Fernandez_Tesis_FINAL_2026-07-17.docx` | `360d1dd7dec881bcc19928bf0268e9aa053765fcdfb3f6a16aa177e9a2db6dbd` |
+| `Scavone_Fernandez_Tesis_FINAL_2026-07-17.docx` | `ab28dc801d27b3567c7bfdcca91a93e5ce0a4b8b81b185aadc1d5a3a7918190d` |
 | `stata/tesis_cda.do` | `458a73b845a0dda56eaeb1c08e157e62ed51f9a015022fd316f80ce8a157cd08` |
 | `data/processed/base_cda.csv` | `f5700221ca2ccab9389e0e3285b0cfc68d67864ee91bfd4b487ef4087b19631e` |
 | `data/processed/base_cda.xlsx` | `7f2d7d0096d75fa9b9dae65736970986f7d2ac26bccb6b05a5d0e386e7c48f75` |
@@ -24,6 +24,13 @@ Cualquier otro archivo con nombre similar es una versión anterior archivada (ca
 - **Datos crudos oficiales** en `data/raw/` (boletines de tasas, Anexo Estadístico, TPM.xlsx, FRED).
 - **Trazabilidad:** hojas `diccionario` y `fuentes_trazabilidad` dentro de `base_cda.xlsx`,
   y `data/processed/sources.md`.
+
+## Rev. 3.2 — reencuadre de la hipótesis (migración de la naturaleza del riesgo)
+- Se reescribieron hipótesis (Sección 6), Resumen, Abstract y Conclusiones (Segunda y Tercera + síntesis)
+  para centrar el hallazgo confirmado: la **migración de la fuente del diferencial, de un componente
+  expectacional (inflación/depreciación esperadas) a un residuo de riesgo real** (Fisher, p<0,001). La
+  iliquidez pasa a ser un candidato subordinado; se explicita el papel de los factores globales (~82%).
+  **NO se cambió ningún número**; solo el encuadre narrativo.
 
 ## Rev. 3.1 — bibliografia APA reordenada + figuras nativas de Stata en el Word
 - Bibliografia reordenada alfabeticamente (APA 7): las entradas del BCP quedan agrupadas por año
