@@ -1,6 +1,6 @@
 # MANIFIESTO DE ENTREGA — versión canónica
 
-**Fecha de congelamiento:** 17/07/2026 (rev. 3: corte principal 2011:T2, do-file y Word consistentes)
+**Fecha de congelamiento:** 17/07/2026 (rev. 3.1: corte 2011:T2, bibliografía APA ordenada, figuras de Stata)
 **Regla:** estos son los únicos archivos válidos para depósito, auditoría y defensa.
 Cualquier otro archivo con nombre similar es una versión anterior archivada (carpeta `archivo_versiones/`).
 
@@ -18,9 +18,9 @@ Cualquier otro archivo con nombre similar es una versión anterior archivada (ca
   y definición homogénea 2004–2024, sin empalme). La ponderada queda solo como sensibilidad (Etapa 7).
 - **Todas las tablas y cifras del Word** provienen de una única corrida del do-file sobre esta base
   (log en `output/tesis_cda.log` al ejecutar). La inferencia del documento usa la convención de
-  Stata `newey` (ajuste de muestra pequeña y distribución t), de modo que la corrida en Stata 17
-  reproduce las cifras del texto; la validación cruzada independiente (`python/corrida_canonica.py`,
-  con la misma convención) las reproduce en `output/canonica/resultados.json`.
+  Stata `newey` (ajuste de muestra pequeña y distribución t). El do-file se ejecutó en Stata 17 y su
+  registro reproduce cada cifra del texto: esa corrida es la única validación del entregable (la
+  réplica en Python usada durante el desarrollo se retiró y quedó archivada).
 - **Datos crudos oficiales** en `data/raw/` (boletines de tasas, Anexo Estadístico, TPM.xlsx, FRED).
 - **Trazabilidad:** hojas `diccionario` y `fuentes_trazabilidad` dentro de `base_cda.xlsx`,
   y `data/processed/sources.md`.
