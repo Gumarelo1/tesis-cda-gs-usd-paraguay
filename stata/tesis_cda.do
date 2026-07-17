@@ -1,496 +1,452 @@
-*==============================================================================*
-*  TESIS: Cambio de Nivel y Composicion del Diferencial de Tasas entre CDA en   *
-*         Guaranies y Dolares durante la Transicion al Regimen de Metas de      *
-*         Inflacion: Paraguay, 2004-2024.   (Scavone & Fernandez)               *
-*==============================================================================*
-*  DO-FILE CANONICO - STATA 17.   Version: v2026-07-16  (post-auditoria integral)
-*
-*  UNA SOLA BASE, UNA SOLA CORRIDA, UNA SOLA SALIDA:
-*   - Base canonica  : data/processed/base_cda.csv  (84 trimestres, 2004Q1-2024Q4)
-*   - Serie primaria : tramo CDA <=365 dias (i_Gs, i_USD) - fuente unica SB/BCP,
-*                      sin empalme. La ponderada (i_*_pond) es SOLO sensibilidad.
-*   - Nucleo         : rp = (i_Gs - i_USD) - InflDiff  ("diferencial real
-*                      residual", proxy de la prima de riesgo; NO prima pura:
-*                      mezcla error de expectativas y primas de liquidez/credito).
-*   - Regimen        : D2011 = 1 desde 2011:T2 (Resolucion N.22, Acta N.31 del
-*                      18-may-2011). PRINCIPAL = T2; sensibilidad = T1.
-*   - Cada bloque lleva el numero de la tabla del documento (Tabla 8.x) para
-*     correspondencia 1:1 entre Word, do-file y salida.
-*
-*  VEREDICTO QUE REPRODUCE ESTE ARCHIVO (unico, sin ambiguedad):
-*   (i)  El nivel del diferencial real residual SUBE +3,89 pp tras 2011T2
-*        (p<0,001), robusto a todas las sensibilidades.
-*   (ii) Las PENDIENTES de VolTC e Iliq NO cambian conjuntamente al 5%
-*        (Wald F=2,00; p=0,142). NO hay evidencia de recomposicion interna.
-*   (iii) El quiebre endogeno (Bai-Perron) de rp cae en 2011Q2.
-*   Con la serie ponderada (sensibilidad) las pendientes SI cambian (p<0,001):
-*   la evidencia de pendientes es sensible a la definicion de la serie; la de
-*   nivel es robusta. Ninguna conclusion del documento excede estos limites.
-*
-*  COMO CORRERLO (portatil, sin rutas personales):
-*    1) Abrir Stata 17 y situarse en la CARPETA RAIZ del proyecto:
-*         cd "<carpeta-del-proyecto>"        (la carpeta que contiene data/ y stata/)
-*    2) do "stata/tesis_cda.do"
-*    Los modulos SSC (rangestat, estout, xtbreak, kpss) se instalan solos si faltan.
-*    Toda la sesion queda registrada en output/log_tesis_cda.log
-*==============================================================================*
-
+********************************************************************************
+* TESIS — Recomposicion de la Prima de Riesgo en el Diferencial de Retornos
+*         CDA Guaranies vs. Dolares. Sistema Bancario Paraguayo, 2004–2024.
+* Autores: Laviero Scavone y Matias Fernandez.  Stata 17+.
+*------------------------------------------------------------------------------*
+* SERIE PRINCIPAL de tasas: tramo CDA <=365 dias, tasa efectiva, bancos
+*   ("Promedio de Tasas", Superintendencia de Bancos, BCP). Fuente unica y una
+*   sola definicion 2004–2024 (sin empalme). Serie ponderada = sensibilidad.
+* CORTE INSTITUCIONAL PRINCIPAL: 2011T2 (adopcion formal de Metas de Inflacion,
+*   Res. N.22 Acta N.31 del 18-may-2011). Sensibilidad: 2011T1.
+* MODELO NUCLEO: se estima sobre la PRIMA DE RIESGO rp = difn - InflDiff, con la
+*   inflacion RESTADA (nunca como regresor), para evitar la circularidad de Fisher.
+*------------------------------------------------------------------------------*
+* COMO CORRERLO:
+*   do "stata/tesis_cda.do" "C:/ruta/a/la/carpeta/tes"
+*   (si se omite la ruta, usa la global 'root' de abajo). Requiere internet la
+*   primera vez para instalar rangestat, estout, xtbreak y kpss desde SSC.
+* SALIDAS: log -> output/tesis_cda.log ; figuras -> output/figuras/ ;
+*          base derivada -> output/base_cda_derivada.dta
+* HONESTIDAD: coeficientes, SE y p-valores se reportan TAL COMO SALEN.
+********************************************************************************
+version 17.0
 clear all
 set more off
-version 17
+set linesize 120
+set scheme s1color            // figuras con fondo blanco para el documento
 
-*------------------------------------------------------------------------------*
-* 0. VALIDACION DE CARPETA (portatil: NO hay rutas absolutas en este archivo)
-*------------------------------------------------------------------------------*
-capture confirm file "data/processed/base_cda.csv"
-if _rc {
-    di as error "ERROR: no se encuentra data/processed/base_cda.csv"
-    di as error "Ejecute primero:  cd <carpeta raiz del proyecto>  (la que contiene data/ y stata/)"
-    exit 601
-}
+* --- Ruta portable: acepta argumento; si no, usa esta global (unica edicion) ---
+args root
+if `"`root'"' == "" global root "C:/Users/Laviero Scavone/Desktop/tes"
+else global root `"`root'"'
+cd "$root"
 capture mkdir "output"
-capture mkdir "output/tablas"
 capture mkdir "output/figuras"
+capture mkdir "output/tablas"
 
-* --- LOG de toda la sesion (evidencia de la corrida) ---
-capture log close
-log using "output/log_tesis_cda.log", replace text
+capture log close _all
+log using "output/tesis_cda.log", replace text
 
-di "Stata: `c(stata_version)'  |  Fecha de corrida: `c(current_date)' `c(current_time)'"
-
-* --- Modulos SSC: instalar solo si faltan ---
+********************************************************************************
+* 0. PAQUETES Y PROGRAMA AUXILIAR
+********************************************************************************
 foreach pkg in rangestat estout xtbreak kpss {
     capture which `pkg'
-    if _rc capture ssc install `pkg', replace
-    capture which `pkg'
-    if _rc di as text "[aviso] `pkg' no disponible (sin internet?): los bloques que lo usan se omiten con aviso."
+    if _rc {
+        di as text "Instalando `pkg' desde SSC..."
+        capture ssc install `pkg', replace
+    }
 }
 
-*------------------------------------------------------------------------------*
-* Bandwidth HAC (Newey-West): lag = 4 (~un anio de memoria trimestral).
-* Andrews O(T^{1/3}) ~ 4,4 con T=84; regla NW floor(4*(84/100)^{2/9}) = 3.
-* Sensibilidad con lags 3/5/6 en el bloque 8.8.
-*------------------------------------------------------------------------------*
-global HAC = 4
-
-*------------------------------------------------------------------------------*
-* newey_nogap: newey sobre la submuestra estimable colapsada a indice secuencial.
-*   newey exige muestra sin huecos temporales (r(498)). La SERIE PRIMARIA no
-*   tiene huecos internos (la muestra del modelo es contigua): el colapso solo
-*   remueve bordes (leads/lags) y NO altera la adyacencia temporal. En la serie
-*   PONDERADA (sensibilidad, hueco 2006Q4) el colapso vuelve adyacentes 2006Q3
-*   y 2007Q1: se declara como limitacion de ESA sensibilidad.
-*   Es el mismo tratamiento que statsmodels aplica al vector contiguo sin NaN.
-*------------------------------------------------------------------------------*
+* newey_nogap: newey sobre la submuestra estimable, reindexando el tiempo a un
+* indice secuencial. Necesario cuando la serie tiene huecos internos (la serie
+* ponderada tiene uno en 2006T4). Para series contiguas equivale a newey normal.
 capture program drop newey_nogap
 program define newey_nogap, eclass
-    syntax varlist(numeric min=1) [if] [in], lag(integer 4)
+    version 17.0
+    syntax varlist(numeric min=1) [if] [in], LAG(integer)
     marksample touse
     preserve
-    quietly keep if `touse'
-    quietly gen long __tseq = _n
-    quietly tsset __tseq
-    newey `varlist', lag(`lag')
+        quietly keep if `touse'
+        quietly gen long __tseq = _n
+        quietly tsset __tseq
+        newey `varlist', lag(`lag')
     restore
 end
 
-*==============================================================================*
-* 1. CARGA + ASSERTS DE INTEGRIDAD (la corrida ABORTA si la base no es la canonica)
-*==============================================================================*
-import delimited "data/processed/base_cda.csv", clear varnames(1) case(preserve)
+********************************************************************************
+* 1. IMPORTACION Y PRUEBAS DE INTEGRIDAD
+********************************************************************************
+confirm file "data/processed/base_cda.csv"
+import delimited using "data/processed/base_cda.csv", clear varnames(1) case(preserve) encoding(utf8)
 
 assert _N == 84
-quietly count if missing(i_Gs)
-assert r(N) == 0                              // primaria completa
-quietly count if missing(i_USD)
-assert r(N) == 0
-quietly count if missing(i_Gs_pond)
-assert r(N) == 1                              // ponderada: 1 faltante (2006Q4)
-quietly count if missing(TC)
-assert r(N) == 0
-quietly count if missing(dolariz)
-assert r(N) == 0
-quietly count if missing(IPC_PY)
-assert r(N) == 0
-quietly count if missing(IPC_US)
-assert r(N) == 0
-quietly count if missing(tpm)
-assert r(N) == 29                             // TPM nace 2011-05 (55/84)
-di as result "[OK] Integridad de la base canonica verificada (84 filas; cobertura esperada por serie)"
+gen tq = yq(anio, trimestre)
+format tq %tq
+sort tq
+isid tq
+assert tq == yq(2004,1) + _n - 1          // 84 trimestres contiguos 2004T1–2024T4
+tsset tq
 
-gen t = yq(anio, trimestre)
-format t %tq
-tsset t
+* La serie principal (<=365) no tiene huecos trimestrales:
+count if missing(i_Gs) | missing(i_USD)
+assert r(N) == 0
+assert inrange(meses_cobertura,1,3)
+count if meses_cobertura < 3
+di as result "Trimestres con cobertura mensual parcial (declarados): " r(N)
+list fecha meses_cobertura ultimo_mes_publicado if meses_cobertura < 3, noobs
 
-*==============================================================================*
-* 2. VARIABLES (definiciones unicas del documento)
-*==============================================================================*
-gen difn = i_Gs - i_USD                       // diferencial nominal (pp anuales)
-gen difq = difn/4                             // trimestralizado (lineal)
-gen difq_comp = ((1+i_Gs/100)^0.25 - (1+i_USD/100)^0.25)*100   // conversion compuesta (M7)
-gen dep     = (TC - L.TC)/L.TC * 100
-gen depLead = (F.TC - TC)/TC * 100
+********************************************************************************
+* 2. CONSTRUCCION DE VARIABLES
+********************************************************************************
+* depreciacion del guarani (%)
+gen dep     = 100*(TC/L.TC - 1)
+gen depLead = 100*(F.TC/TC - 1)                    // depreciacion del trimestre siguiente
+* diferencial de tasas
+gen difn = i_Gs - i_USD                            // nominal (pp, % anual)
+gen difq = difn/4                                  // trimestralizado (frecuencia de dep)
+* series de retorno
 gen DR     = difq - depLead
-gen DRcons = difq - max(depLead, 0) if !missing(depLead)   // max(.,0)=0 en Stata: el if evita un valor espurio
-gen infl_py  = (IPC_PY - L4.IPC_PY)/L4.IPC_PY * 100
-gen infl_us  = (IPC_US - L4.IPC_US)/L4.IPC_US * 100
+gen DRcons = difq - max(depLead,0) if !missing(depLead)   // conservadora (excluye apreciacion)
+* Fisher
+gen infl_py  = 100*(IPC_PY/L4.IPC_PY - 1)
+gen infl_us  = 100*(IPC_US/L4.IPC_US - 1)
 gen InflDiff = infl_py - infl_us
-gen rp = difn - InflDiff                      // DIFERENCIAL REAL RESIDUAL (proxy de prima de riesgo)
-
-* --- regimen de Metas de Inflacion: PRINCIPAL desde 2011T2 (18-may-2011) ---
-gen D2011   = (anio > 2011) | (anio == 2011 & trimestre >= 2)
-gen D2011t1 = (anio >= 2011)                  // sensibilidad (bloque 8.8)
-
-* --- volatilidad cambiaria: sd movil 8 trimestres de dep (ddof=1, n>=2) ---
+gen rp       = difn - InflDiff                     // prima de riesgo (diferencial real residual)
+* regimen: PRINCIPAL 2011T2 ; sensibilidad 2011T1
+gen D2011    = (anio>2011) | (anio==2011 & trimestre>=2)
+gen D2011_T1 = (anio>=2011)
+label var D2011    "Post-regimen (>=2011T2, principal)"
+label var D2011_T1 "Post-regimen (>=2011T1, sensibilidad)"
+* crisis financiera global (quiebre endogeno de DR)
+gen crisis = inrange(tq, yq(2008,2), yq(2009,3))
+* volatilidad cambiaria: sd movil de 8 trimestres
 capture which rangestat
 if _rc == 0 {
-    rangestat (sd) VolTC = dep, interval(t -7 0)
+    rangestat (sd) VolTC = dep, interval(tq -7 0)
 }
 else {
+    * respaldo nativo (no requiere SSC ni internet): las 84 filas son trimestres
+    * contiguos, por lo que la ventana por posicion equivale a la ventana calendario
+    di as text "rangestat no disponible: usando respaldo nativo para VolTC"
     gen VolTC = .
     forvalues i = 1/`=_N' {
         quietly summarize dep in `=max(1,`i'-7)'/`i'
         if r(N) >= 2 quietly replace VolTC = r(sd) in `i'
     }
 }
-gen Iliq = dolariz                            // dolarizacion/segmentacion (proxy; NO "iliquidez" a secas)
+gen dolar = dolariz                                // proxy de iliquidez/segmentacion
 
-* --- centrado EN LA MUESTRA DEL MODELO (n=80: 2005Q1-2024Q4) ---
-quietly summarize VolTC if !missing(rp, VolTC, Iliq)
+* Chequeo de formulas: la inflacion recalculada coincide con la publicada
+assert abs(infl_py - infl_PY_yoy) < 0.001 if !missing(infl_py, infl_PY_yoy)
+assert abs(infl_us - infl_US_yoy) < 0.001 if !missing(infl_us, infl_US_yoy)
+
+* variables centradas del modelo nucleo (para interpretar D2011 en la media)
+gen byte sample_main = !missing(rp, VolTC, dolar)
+quietly summarize VolTC if sample_main, meanonly
 gen VolTC_c = VolTC - r(mean)
-quietly summarize Iliq if !missing(rp, VolTC, Iliq)
-gen Iliq_c = Iliq - r(mean)
-gen DxV = D2011*VolTC_c
-gen DxI = D2011*Iliq_c
+quietly summarize dolar if sample_main, meanonly
+gen dolar_c = dolar - r(mean)
+gen DxVolTC = D2011*VolTC_c
+gen DxDolar = D2011*dolar_c
+label var VolTC_c "Riesgo cambiario (VolTC, centrada)"
+label var dolar_c "Iliquidez/dolarizacion (centrada)"
+label var DxVolTC "D2011T2 x VolTC"
+label var DxDolar "D2011T2 x dolarizacion"
 
-* --- series de sensibilidad ---
-gen difn_fdt  = i_Gs_fdt - i_USD_fdt
-gen difq_fdt  = difn_fdt/4
-gen difn_pond = i_Gs_pond - i_USD_pond
-gen rp_pond   = difn_pond - InflDiff
+********************************************************************************
+* 3. ETAPA 1 — DESCRIPTIVOS + FIGURA 8.1 (serie DR)
+********************************************************************************
+di as text _n(2) "{hline 70}"
+di " ETAPA 1 — Descriptivos por subperiodo (corte 2011T2)"
+di "{hline 70}"
+tabstat difn DR DRcons InflDiff rp, by(D2011) ///
+    statistics(n mean sd min p50 max) columns(statistics)
 
-label var rp       "Diferencial real residual (proxy prima de riesgo, pp)"
-label var DR       "Dif. de retorno trimestral (estandar)"
-label var DRcons   "Dif. de retorno trimestral (conservador)"
-label var InflDiff "Dif. de inflacion interanual (pp)"
-label var VolTC    "Volatilidad cambiaria (sd movil 8T)"
-label var Iliq     "Dolarizacion de depositos / segmentacion (%)"
-label var D2011    "Regimen MdI (=1 desde 2011T2)"
+* ===== FIGURA 8.1 del Word: serie del diferencial de retorno DR =====
+* (comando en UNA sola linea: anda igual si se pega en la ventana de comandos)
+tsline DR, lcolor(navy) lwidth(medthick) yline(0, lpattern(dash) lcolor(gs9)) xline(`=yq(2011,2)', lcolor(red) lwidth(medthick)) title("Diferencial de retorno trimestral DR (guaranies vs. dolares)") subtitle("2004-2024; linea roja = adopcion de Metas de Inflacion (2011T2)") ytitle("DR (puntos porcentuales, trimestral)") xtitle("") note("Fuente: elaboracion propia con datos del BCP.") name(g81, replace)
+graph export "output/figuras/Figura_8_1_DR.png", replace width(1600)
 
-*==============================================================================*
-* BLOQUE 8.1 - Descriptivos (Tabla 8.1)
-*==============================================================================*
-di _n(2) "{hline 78}"
-di " 8.1 Descriptivos de rp, DR y DRcons (corte 2011T2)"
-di "{hline 78}"
-tabstat rp DR DRcons, by(D2011) stat(n mean p50 sd min max skewness kurtosis) col(stat)
-tabstat rp DR DRcons, stat(n mean p50 sd min max skewness kurtosis) col(stat)
+********************************************************************************
+* 4. ETAPA 2 — REGRESION DE FAMA + PRUEBA CONSERVADORA
+********************************************************************************
+di as text _n(2) "{hline 70}"
+di " ETAPA 2 — Coeficiente de Fama (UIP <=> beta=1) + DRcons"
+di "{hline 70}"
+* difq (trimestralizado) es la misma frecuencia que depLead => beta=1 es la nula UIP
+newey_nogap depLead difq, lag(4)
+test difq = 1
+estimates store fama_total
+foreach cond in "D2011==0" "D2011==1" {
+    newey_nogap depLead difq if `cond', lag(4)
+    test difq = 1
+}
+* Prueba conservadora H0: media(DRcons)<=0 vs H1>0, con t de Stata (df=n-1)
+newey_nogap DRcons, lag(4)
+scalar t_dr = _b[_cons]/_se[_cons]
+di as result "DRcons total: media=" %7.4f _b[_cons] ///
+    "  p unilateral(H1: media>0) = " %6.4f ttail(e(df_r), t_dr)
+newey_nogap DRcons if D2011==1, lag(4)
+scalar t_dr = _b[_cons]/_se[_cons]
+di as result "DRcons post : media=" %7.4f _b[_cons] ///
+    "  p unilateral(H1: media>0) = " %6.4f ttail(e(df_r), t_dr)
 
-tsline rp, lcolor(navy) lwidth(medthick) yline(0, lpattern(dash) lcolor(gs8))   ///
-    xline(`=yq(2011,2)', lcolor(red) lwidth(medthick))                          ///
-    title("Diferencial real residual rp") subtitle("marca roja = 2011T2 (MdI)") ///
-    ytitle("pp anuales") xtitle("") name(g_rp, replace)
-graph export "output/figuras/f1_rp_serie.png", replace width(1600)
-
-tsline DR DRcons, lcolor(navy orange) lpattern(solid dash)                      ///
-    yline(0, lpattern(dot) lcolor(gs8)) xline(`=yq(2011,2)', lcolor(red))       ///
-    legend(order(1 "DR (estandar)" 2 "DRcons (conservador)"))                   ///
-    title("DR y DRcons") name(g_dr, replace)
-graph export "output/figuras/f2_DR_DRcons.png", replace width(1600)
-
-*==============================================================================*
-* BLOQUE 8.2 - Regresion de Fama / UIP (Tabla 8.2)
-*   depLead = a + b*difq ; UIP <=> b=1. difq esta en la MISMA frecuencia
-*   trimestral que depLead (la version anualizada implicaria b_UIP=0,25).
-*   RESULTADO con la serie primaria: b=1,16 (total) y b=1 NO se rechaza en
-*   ninguna muestra (R2 ~ 0): el diferencial NO predice la depreciacion.
-*==============================================================================*
-di _n(2) "{hline 78}"
-di " 8.2 Fama/UIP (regresor trimestralizado difq; sensib.: compuesta y fdt)"
-di "{hline 78}"
-foreach rgr in difq difq_comp difq_fdt {
-    di _n "--- regresor: `rgr' ---"
-    newey_nogap depLead `rgr', lag($HAC)
-    test `rgr' = 1
-    newey_nogap depLead `rgr' if D2011==0, lag($HAC)
-    test `rgr' = 1
-    newey_nogap depLead `rgr' if D2011==1, lag($HAC)
-    test `rgr' = 1
+********************************************************************************
+* 5. ETAPA 4 — DESCOMPOSICION DE FISHER + FIGURA 8.2 (barras)
+********************************************************************************
+di as text _n(2) "{hline 70}"
+di " ETAPA 4 — Descomposicion de Fisher: difn = InflDiff + rp"
+di "{hline 70}"
+tabstat difn InflDiff rp if !missing(rp), by(D2011) statistics(n mean sd) columns(statistics)
+di as text "Cambio de medias pre/post 2011T2 (HAC):"
+foreach y in rp InflDiff difn {
+    newey_nogap `y' D2011 if !missing(rp), lag(4)
+    di as result "  Delta `y' = " %7.3f _b[D2011] "  (p=" %5.3f ///
+        (2*ttail(e(df_r), abs(_b[D2011]/_se[D2011]))) ")"
+    estimates store fisher_`y'
 }
 
-di _n "-- DRcons: H0 mu<=0 vs HA mu>0 (t HAC unilateral) --"
-newey_nogap DRcons, lag($HAC)
-scalar tt = _b[_cons]/_se[_cons]
-di "   TOTAL:  media=" %7.4f _b[_cons] "  t=" %6.3f tt "  p_1cola(mu>0)=" %6.4f ttail(e(df_r), tt)
-newey_nogap DRcons if D2011==0, lag($HAC)
-scalar tt = _b[_cons]/_se[_cons]
-di "   PRE:    media=" %7.4f _b[_cons] "  t=" %6.3f tt "  p_1cola(mu>0)=" %6.4f ttail(e(df_r), tt)
-newey_nogap DRcons if D2011==1, lag($HAC)
-scalar tt = _b[_cons]/_se[_cons]
-di "   POST:   media=" %7.4f _b[_cons] "  t=" %6.3f tt "  p_1cola(mu>0)=" %6.4f ttail(e(df_r), tt)
+* ===== FIGURA 8.2 del Word: descomposicion de Fisher (barras pre/post) =====
+graph bar (mean) InflDiff rp if !missing(rp), over(D2011, relabel(1 "Pre-2011T2" 2 "Post-2011T2")) bar(1, color(navy)) bar(2, color(cranberry)) blabel(bar, format(%4.2f) size(small)) ytitle("puntos porcentuales anuales") yline(0, lcolor(gs9)) legend(order(1 "Prima de inflacion (InflDiff)" 2 "Prima de riesgo (rp)")) title("Descomposicion de Fisher del diferencial nominal") note("Fuente: elaboracion propia con datos del BCP y FRED.") name(g82, replace)
+graph export "output/figuras/Figura_8_2_Fisher.png", replace width(1600)
 
-*==============================================================================*
-* BLOQUE 8.3 - Integracion y quiebre estructural (Tabla 8.3)
-*   Diagnostico DECLARADO MIXTO: rp aparece ~I(1) en la ventana completa, pero
-*   dentro de cada regimen no hay evidencia contra la estacionariedad (KPSS
-*   p>0,10 en ambos; ADF post p<0,001): el aparente I(1) es el QUIEBRE DE NIVEL
-*   de 2011 (Perron, 1989). No se afirma cointegracion formal (ver 8.7).
-*==============================================================================*
-di _n(2) "{hline 78}"
-di " 8.3 Integracion (ADF + KPSS) y quiebre endogeno"
-di "{hline 78}"
-preserve
-quietly keep if !missing(rp)
-quietly gen long __tseq = _n
-quietly tsset __tseq
-foreach v in rp VolTC Iliq InflDiff DR {
-    di _n "--- `v' (ventana completa) ---"
-    capture noisily dfuller `v'
-    capture noisily kpss `v', maxlag(4)
+********************************************************************************
+* 6. ETAPA 5 — MODELO CENTRAL MCO-HAC (rp centrado, corte 2011T2)
+********************************************************************************
+di as text _n(2) "{hline 70}"
+di " ETAPA 5 — Modelo nucleo: rp ~ VolTC_c + dolar_c + D2011 + DxVolTC + DxDolar"
+di "{hline 70}"
+di as text " Recomposicion interna: HA b(DxVolTC)<0 y b(DxDolar)>0"
+newey_nogap rp VolTC_c dolar_c D2011 DxVolTC DxDolar, lag(4)
+estimates store modelo_principal
+di as text _n "Wald conjunto de cambio de pendientes (H0: DxVolTC=DxDolar=0):"
+test DxVolTC DxDolar
+di as text "Chow completo (nivel + pendientes):"
+test D2011 DxVolTC DxDolar
+
+********************************************************************************
+* 7. ETAPA 3 — ESTACIONARIEDAD Y QUIEBRE ESTRUCTURAL
+*   (bloque contiguo: dfuller/pperron/kpss/estat sb*/xtbreak exigen muestra sin
+*    huecos; se reindexa el tiempo a un indice secuencial.)
+********************************************************************************
+di as text _n(2) "{hline 70}"
+di " ETAPA 3 — Raices unitarias (ADF/PP/KPSS) y quiebre estructural"
+di "{hline 70}"
+di as text "-- Integracion por serie (ADF: H0 raiz unitaria; KPSS: H0 estacionariedad) --"
+foreach y in DR rp VolTC dolar InflDiff {
+    preserve
+        quietly keep if !missing(`y')
+        quietly gen long __s = _n
+        quietly tsset __s
+        di as text _n "ADF/PP/KPSS: `y'"
+        dfuller `y', lags(4)
+        capture noisily pperron `y'
+        capture noisily kpss `y', maxlag(4)
+    restore
 }
-di _n "--- rp por SUBMUESTRA (argumento Perron 1989) ---"
-capture noisily dfuller rp if D2011==0
-capture noisily kpss rp if D2011==0, maxlag(4)
-capture noisily dfuller rp if D2011==1
-capture noisily kpss rp if D2011==1, maxlag(4)
+* Quiebre estructural endogeno sobre DR (serie de retorno) y rp (prima)
+foreach y in DR rp {
+    preserve
+        quietly keep if !missing(`y')
+        quietly gen long __s = _n
+        quietly tsset __s
+        di as text _n "== Quiebre endogeno en `y' =="
+        quietly regress `y' L.`y'
+        capture noisily estat sbsingle
+        capture noisily xtbreak test `y', breaks(3) hypothesis(3)      // UDmax/WDmax
+        capture noisily xtbreak estimate `y', breaks(1)                // fecha + IC95
+        di as text "  (fechas de xtbreak en indice colapsado; DR->crisis 2008T2 ; rp->2011T2)"
+    restore
+}
+* Diferencia de medias de DR pre/post 2011T2 (prueba t con HAC)
+di as text _n "-- Diferencia de medias DR pre/post 2011T2 (HAC) --"
+newey_nogap DR D2011, lag(4)
 
-di _n "-- Quiebre endogeno de rp: Bai-Perron (xtbreak) --"
-capture noisily xtbreak test rp, breaks(3) hypothesis(3)
-capture noisily xtbreak estimate rp, breaks(1)
-di as text "   (resultado canonico: 1 quiebre en 2011Q2 - indice colapsado; mapear con list __tseq fecha)"
-capture noisily xtbreak estimate rp, breaks(3)
-restore
-
-di _n "-- Diferencia de medias pre/post 2011T2 (HAC) --"
-newey_nogap rp D2011, lag($HAC)
-newey_nogap DR D2011, lag($HAC)
-
-*==============================================================================*
-* BLOQUE 8.4 - Descomposicion de Fisher (Tabla 8.4)
-*   difn = InflDiff + rp. En NIVELES (pp anuales); NO en % porque rp<0 pre-2011.
-*==============================================================================*
-di _n(2) "{hline 78}"
-di " 8.4 Fisher: difn = InflDiff + rp (niveles pre/post 2011T2)"
-di "{hline 78}"
-tabstat difn InflDiff rp if !missing(rp), by(D2011) stat(n mean sd) col(stat) longstub
-di _n "-- t HAC de la diferencia pre/post --"
-newey_nogap rp D2011, lag($HAC)
-newey_nogap InflDiff D2011, lag($HAC)
-newey_nogap difn D2011, lag($HAC)
-
-*==============================================================================*
-* BLOQUE 8.5 - MODELO CENTRAL (Tabla 8.5): rp centrado, D2011 desde T2
-*   rp = b0 + b2 VolTC_c + b3 Iliq_c + b4 D2011 + b5 DxV + b6 DxI  (HAC lag 4)
-*   VEREDICTO UNICO (los comentarios NO contradicen el Wald):
-*     - NIVEL: b4 = +3,89 (p<0,001)  -> cambio de nivel fuerte.
-*     - PENDIENTES: Wald b5=b6=0 -> F=2,00, p=0,142: NO se rechaza estabilidad.
-*       El Chow completo es significativo POR EL INTERCEPTO, no por pendientes;
-*       NO constituye evidencia de recomposicion interna.
-*==============================================================================*
-di _n(2) "{hline 78}"
-di " 8.5 MODELO CENTRAL: rp ~ VolTC_c + Iliq_c + D2011(T2) + DxV + DxI"
-di "{hline 78}"
-newey_nogap rp VolTC_c Iliq_c D2011 DxV DxI, lag($HAC)
-estimates store m_central
-test DxV DxI                       // Wald de pendientes (contraste central)
-test D2011 DxV DxI                 // Chow completo (nivel + pendientes)
-scalar t_b5 = _b[DxV]/_se[DxV]
-scalar t_b6 = _b[DxI]/_se[DxI]
-di "   b5 (DxV) p_1cola(HA<0)=" %6.4f (1 - ttail(e(df_r), t_b5)) "   [conjetura: <0]"
-di "   b6 (DxI) p_1cola(HA>0)=" %6.4f ttail(e(df_r), t_b6)       "   [conjetura: >0; el dato va en contra]"
-capture noisily esttab m_central using "output/tablas/tabla_8_5_modelo_central.csv", ///
-    replace se p nostar wide title("Tabla 8.5 - Modelo central (HAC lag 4)")
-
-*==============================================================================*
-* BLOQUE 8.6 - Dominancia estandarizada y composicion interna (Tabla 8.6)
-*   Analisis DESCRIPTIVO (no contraste formal). Advertencia: el R2 del bloque
-*   post-2011 es ~0,03: hay poco que repartir entre VolTC e Iliq.
-*==============================================================================*
-di _n(2) "{hline 78}"
-di " 8.6 Dominancia estandarizada + composicion Shapley (descriptivo)"
-di "{hline 78}"
-egen zV = std(VolTC) if !missing(rp, VolTC, Iliq)
-egen zI = std(Iliq)  if !missing(rp, VolTC, Iliq)
-gen DzV = D2011*zV
-gen DzI = D2011*zI
-newey_nogap rp zV zI D2011 DzV DzI, lag($HAC)
-lincom zV + DzV
-lincom zI + DzI
-lincom (zI + DzI) - (zV + DzV)
-
-di _n "-- Shapley/LMG pre/post (2 regresores: formula cerrada) --"
+********************************************************************************
+* 8. ETAPA 5-BIS — COMPOSICION INTERNA DE LA PRIMA (Shapley/LMG) + FIGURA 8.3
+*   Descriptivo/exploratorio (NO es el contraste formal; ese es la Etapa 5).
+********************************************************************************
+di as text _n(2) "{hline 70}"
+di " ETAPA 5-BIS — Composicion interna de rp (Shapley/LMG) + dominancia"
+di "{hline 70}"
+* (a) composicion estatica pre/post: reparto del R2 entre VolTC e Iliq
+di as text "-- Reparto del R2 de rp entre riesgo cambiario e iliquidez --"
 foreach d in 0 1 {
     quietly regress rp VolTC if D2011==`d'
     scalar r2v = e(r2)
-    quietly regress rp Iliq if D2011==`d'
+    quietly regress rp dolar if D2011==`d'
     scalar r2i = e(r2)
-    quietly regress rp VolTC Iliq if D2011==`d'
+    quietly regress rp VolTC dolar if D2011==`d'
     scalar r2b = e(r2)
     scalar cv = 0.5*(r2v + r2b - r2i)
     scalar ci = 0.5*(r2i + r2b - r2v)
-    di "   D2011=`d': n=" e(N) "  R2=" %5.3f r2b "  %VolTC=" %5.1f 100*cv/(cv+ci) "  %Iliq=" %5.1f 100*ci/(cv+ci)
+    local per = cond(`d'==0, "Pre-2011T2 ", "Post-2011T2")
+    di as result "  `per': R2=" %5.3f r2b "  %VolTC=" %5.1f 100*cv/(cv+ci) ///
+        "%  %Iliq=" %5.1f 100*ci/(cv+ci) "%"
 }
+* correlacion simple rp-dolarizacion por subperiodo (Seccion 8.7 del Word)
+di as text "-- Correlacion rp-dolarizacion por subperiodo --"
+foreach d in 0 1 {
+    quietly corr rp dolar if D2011==`d'
+    di as result "  D2011=`d': corr(rp,dolar)=" %6.3f r(rho) "  (n=" r(N) ")"
+}
+* (b) dominancia estandarizada post-2011: incidencia de cada factor en desvios std
+egen zV = std(VolTC) if sample_main
+egen zI = std(dolar) if sample_main
+gen DzV = D2011*zV
+gen DzI = D2011*zI
+newey_nogap rp zV zI D2011 DzV DzI, lag(4)
+di as text "-- Dominancia post-2011T2 (efecto en desvios estandar) --"
+lincom zV + DzV
+lincom zI + DzI
+lincom (zI + DzI) - (zV + DzV)      // dominancia relativa (indistinguible si p>0.05)
 
-* ventana movil de 20 trimestres (Figura f4)
+* (c) FIGURA 8.3 del Word: evolucion de la composicion (ventana movil 20 trim)
 preserve
-quietly keep if !missing(rp, VolTC, Iliq)
-gen pctVol = .
-gen pctIliq = .
-local W = 20
-forvalues i = `W'/`=_N' {
-    local j = `i' - `W' + 1
-    quietly regress rp VolTC in `j'/`i'
-    scalar r2v = e(r2)
-    quietly regress rp Iliq in `j'/`i'
-    scalar r2i = e(r2)
-    quietly regress rp VolTC Iliq in `j'/`i'
-    scalar r2b = e(r2)
-    scalar cv = 0.5*(r2v + r2b - r2i)
-    scalar ci = 0.5*(r2i + r2b - r2v)
-    quietly replace pctVol  = 100*cv/(cv+ci) in `i'
-    quietly replace pctIliq = 100*ci/(cv+ci) in `i'
-}
-gen t2 = yq(anio, trimestre)
-format t2 %tq
-quietly tsset t2
-tsline pctVol pctIliq, lcolor(cranberry navy) yline(50, lpattern(dot))          ///
-    xline(`=yq(2011,2)', lcolor(black) lpattern(dash))                          ///
-    legend(order(1 "Riesgo cambiario (VolTC)" 2 "Dolarizacion/segmentacion"))   ///
-    title("Composicion del diferencial real residual (ventana movil 20T)")     ///
-    name(g_mov, replace)
-graph export "output/figuras/f4_composicion_movil.png", replace width(1600)
-restore
-
-*==============================================================================*
-* BLOQUE 8.7 - Diagnosticos (Tabla 8.7)
-*   BG lags 3-4 y White significativos -> por eso TODA la inferencia es HAC.
-*   Integracion mixta declarada (8.3); Engle-Granger canonico SIN dummies con
-*   CV de MacKinnon NO rechaza no-cointegracion (t=-2,91 > cv5% -3,85): NO se
-*   afirma cointegracion formal. La lectura del modelo descansa en (i) rp
-*   estacionaria DENTRO de cada regimen y (ii) residuos del modelo con quiebre
-*   estacionarios (ADF -5,0; referencia informal: los CV con quiebre son mas
-*   exigentes). Limitacion declarada en el documento.
-*==============================================================================*
-di _n(2) "{hline 78}"
-di " 8.7 Diagnosticos del OLS paralelo"
-di "{hline 78}"
-preserve
-quietly keep if !missing(rp, VolTC_c, Iliq_c)
-quietly gen long __tseq = _n
-quietly tsset __tseq
-regress rp VolTC_c Iliq_c D2011 DxV DxI
-estat bgodfrey, lags(1 2 3 4)
-estat imtest, white
-estat ovtest
-vif
-predict resid_c, resid
-quietly summarize resid_c, detail
-scalar JB = r(N)/6*(r(skewness)^2 + (r(kurtosis)-3)^2/4)
-di "   Jarque-Bera residuos = " %6.2f JB "  p = " %5.3f chi2tail(2, JB)
-dfuller resid_c, lags(3)
-di as text "   (ADF de residuos del modelo CON quiebre: referencia informal, ver nota del bloque)"
-restore
-
-*==============================================================================*
-* BLOQUE 8.8 - Robustez y sensibilidad (Tabla 8.8)
-*==============================================================================*
-di _n(2) "{hline 78}"
-di " 8.8 Robustez: T1, DRcons, L.Iliq, gradual, crisis, HAC lags, post, encaje, ponderada"
-di "{hline 78}"
-
-di _n "--- (a) D2011 desde T1 (sensibilidad de fecha; hallazgo M3) ---"
-gen DxV_t1 = D2011t1*VolTC_c
-gen DxI_t1 = D2011t1*Iliq_c
-newey_nogap rp VolTC_c Iliq_c D2011t1 DxV_t1 DxI_t1, lag($HAC)
-test DxV_t1 DxI_t1
-
-di _n "--- (b) DRcons como dependiente ---"
-newey_nogap DRcons VolTC_c Iliq_c D2011 DxV DxI, lag($HAC)
-test DxV DxI
-
-di _n "--- (c) dolarizacion rezagada (simultaneidad) ---"
-gen L_Iliq = L.Iliq
-quietly summarize L_Iliq if !missing(rp, VolTC, L_Iliq)
-gen LIliq_c = L_Iliq - r(mean)
-gen DxLI = D2011*LIliq_c
-newey_nogap rp VolTC_c LIliq_c D2011 DxV DxLI, lag($HAC)
-test DxV DxLI
-
-di _n "--- (d) regimen gradual (rampa 2011T2-2016; 1 desde 2017) ---"
-gen Reg = 0
-replace Reg = ((anio-2011)*4 + trimestre - 2 + 1)/23 if (anio>2011 | (anio==2011 & trimestre>=2)) & anio<=2016
-replace Reg = 1 if anio>=2017
-replace Reg = min(Reg, 1)
-gen RxV = Reg*VolTC_c
-gen RxI = Reg*Iliq_c
-newey_nogap rp VolTC_c Iliq_c Reg RxV RxI, lag($HAC)
-test RxV RxI
-
-di _n "--- (e) control por la crisis 2008Q2-2009Q3 ---"
-gen Crisis0809 = (anio==2008 & trimestre>=2) | (anio==2009 & trimestre<=3)
-newey_nogap rp VolTC_c Iliq_c D2011 DxV DxI Crisis0809, lag($HAC)
-test DxV DxI
-
-di _n "--- (f) sensibilidad al rezago HAC ---"
-foreach L in 3 5 6 {
-    di "   -- lag `L' --"
-    newey_nogap rp VolTC_c Iliq_c D2011 DxV DxI, lag(`L')
-    test DxV DxI
-}
-
-di _n "--- (g) submuestra post-2011 (sin dummies) ---"
-newey_nogap rp VolTC Iliq if D2011==1, lag($HAC)
-
-di _n "--- (h) encaje post-2011: brecha EFECTIVA ME-MN como proxy alternativa ---"
-* La brecha de encaje es un fenomeno con cobertura verificada desde 2012Q4
-* (parcial, declarada en la base). Se usa SOLO en la submuestra post-2011;
-* fuente: docs/11_encaje_fuentes.md. UN SOLO BLOQUE, sin contradicciones.
-capture confirm variable encaje_me_efec
-if !_rc {
-    gen brecha_encaje = encaje_me_efec - encaje_mn_efec
-    quietly summarize brecha_encaje if D2011==1
-    if r(N) >= 10 & r(sd) > 0 {
-        newey_nogap rp VolTC brecha_encaje if D2011==1, lag($HAC)
+    quietly keep if !missing(rp, VolTC, dolar)
+    gen pctVol = .
+    gen pctIliq = .
+    local W = 20
+    forvalues i = `W'/`=_N' {
+        local j = `i' - `W' + 1
+        quietly regress rp VolTC in `j'/`i'
+        scalar r2v = e(r2)
+        quietly regress rp dolar in `j'/`i'
+        scalar r2i = e(r2)
+        quietly regress rp VolTC dolar in `j'/`i'
+        scalar r2b = e(r2)
+        scalar cv = 0.5*(r2v + r2b - r2i)
+        scalar ci = 0.5*(r2i + r2b - r2v)
+        quietly replace pctVol  = 100*cv/(cv+ci) in `i'
+        quietly replace pctIliq = 100*ci/(cv+ci) in `i'
     }
-    else di as text "   [aviso] brecha sin variacion suficiente post-2011."
+    quietly tsset tq
+    tsline pctVol pctIliq, lcolor(cranberry navy) lwidth(medthick medthick) yline(50, lpattern(dot) lcolor(gs9)) xline(`=yq(2011,2)', lcolor(black) lpattern(dash)) title("Composicion de la prima de riesgo (ventana movil de 20 trimestres)") subtitle("linea negra = adopcion de Metas de Inflacion (2011T2)") ytitle("% del R2 explicado") xtitle("Trimestre (fin de ventana)") legend(order(1 "Riesgo cambiario (VolTC)" 2 "Iliquidez/dolarizacion")) note("Fuente: elaboracion propia.") name(g83, replace)
+    graph export "output/figuras/Figura_8_3_Composicion.png", replace width(1600)
+restore
+
+********************************************************************************
+* 9. ETAPA 6 — DIAGNOSTICOS + COINTEGRACION (Engle-Granger)
+********************************************************************************
+di as text _n(2) "{hline 70}"
+di " ETAPA 6 — Diagnosticos del modelo y cointegracion"
+di "{hline 70}"
+preserve
+    quietly keep if sample_main
+    quietly gen long __s = _n
+    quietly tsset __s
+    regress rp VolTC_c dolar_c D2011 DxVolTC DxDolar
+    di as text "-- Breusch-Godfrey (autocorrelacion) --"
+    estat bgodfrey, lags(1 2 3 4)
+    di as text "-- White (heterocedasticidad) --"
+    estat imtest, white
+    di as text "-- Ramsey RESET (forma funcional) --"
+    estat ovtest
+    di as text "-- Normalidad de residuos (Skewness/Kurtosis) --"
+    predict __r, resid
+    sktest __r
+    di as text "-- VIF (multicolinealidad) --"
+    vif
+    * Engle-Granger: las series se comportan como ~I(1); si los residuos del
+    * modelo son estacionarios (ADF rechaza raiz unitaria) las series COINTEGRAN
+    * y la relacion NO es espuria.
+    di as text "-- Engle-Granger: ADF sobre los residuos del modelo nucleo --"
+    dfuller __r, lags(3)
+    drop __r
+restore
+
+********************************************************************************
+* 10. ETAPA 6/7 — ROBUSTEZ
+********************************************************************************
+di as text _n(2) "{hline 70}"
+di " ROBUSTEZ"
+di "{hline 70}"
+* (i) sensibilidad de la FECHA: corte 2011T1
+quietly summarize VolTC if !missing(rp,VolTC,dolar), meanonly
+gen VolTC_c1 = VolTC - r(mean)
+quietly summarize dolar if !missing(rp,VolTC,dolar), meanonly
+gen dolar_c1 = dolar - r(mean)
+gen DxV_T1 = D2011_T1*VolTC_c1
+gen DxD_T1 = D2011_T1*dolar_c1
+di as text _n "-- (i) Corte 2011T1 (sensibilidad de la fecha) --"
+newey_nogap rp VolTC_c1 dolar_c1 D2011_T1 DxV_T1 DxD_T1, lag(4)
+test DxV_T1 DxD_T1
+* (ii) control por la crisis global 2008–09
+di as text _n "-- (ii) Control por la crisis 2008T2–2009T3 --"
+newey_nogap rp VolTC_c dolar_c D2011 DxVolTC DxDolar crisis, lag(4)
+* (iii) tasas de fin de trimestre
+gen difn_fdt = i_Gs_fdt - i_USD_fdt
+gen rp_fdt = difn_fdt - InflDiff
+quietly summarize VolTC if !missing(rp_fdt,VolTC,dolar), meanonly
+gen VolTC_cf = VolTC - r(mean)
+quietly summarize dolar if !missing(rp_fdt,VolTC,dolar), meanonly
+gen dolar_cf = dolar - r(mean)
+gen DxVf = D2011*VolTC_cf
+gen DxDf = D2011*dolar_cf
+di as text _n "-- (iii) Tasas de fin de trimestre --"
+newey_nogap rp_fdt VolTC_cf dolar_cf D2011 DxVf DxDf, lag(4)
+test DxVf DxDf
+* (iv) rezago HAC alternativo (3, 5, 6)
+di as text _n "-- (iv) Sensibilidad al rezago HAC --"
+foreach L in 3 5 6 {
+    di as text "   lag `L':"
+    newey_nogap rp VolTC_c dolar_c D2011 DxVolTC DxDolar, lag(`L')
+    test DxVolTC DxDolar
 }
-else di as text "   [aviso] columnas de encaje ausentes."
+* (v) SENSIBILIDAD a la DEFINICION de la serie: promedio ponderado (con empalme)
+di as text _n "-- (v) Serie ponderada (sensibilidad; hueco 2006T4) --"
+gen difn_pond = i_Gs_pond - i_USD_pond
+gen rp_pond = difn_pond - InflDiff
+quietly summarize VolTC if !missing(rp_pond,VolTC,dolar), meanonly
+gen VolTC_cp = VolTC - r(mean)
+quietly summarize dolar if !missing(rp_pond,VolTC,dolar), meanonly
+gen dolar_cp = dolar - r(mean)
+gen DxVp = D2011*VolTC_cp
+gen DxDp = D2011*dolar_cp
+newey_nogap rp_pond VolTC_cp dolar_cp D2011 DxVp DxDp, lag(4)
+test DxVp DxDp
+newey_nogap rp_pond D2011, lag(4)          // salto de nivel con la ponderada
 
-di _n "--- (i) SERIE PONDERADA (sensibilidad de definicion; hallazgo C1/C2) ---"
-* Con la ponderada las pendientes SI cambian (Wald p<0,001) y el nivel se
-* mantiene (+1,76; p<0,001). Se reporta como SENSIBILIDAD: tiene empalme
-* 2010/2011 (~0,7-0,8pp definicional) y sesgo de composicion por plazos.
-* El colapso de calendario de newey_nogap afecta a ESTA serie (hueco 2006Q4).
-newey_nogap rp_pond VolTC_c Iliq_c D2011 DxV DxI, lag($HAC)
-test DxV DxI
-newey_nogap rp_pond D2011, lag($HAC)
+* (vi) robustez: indicadora GRADUAL del regimen (rampa lineal 2011T2-2016; 1 desde 2017)
+di as text _n "-- (vi) Regimen gradual (rampa 2011T2-2016T4) --"
+gen Reg = 0
+replace Reg = (tq - yq(2011,2) + 1)/(yq(2016,4) - yq(2011,2) + 1) if inrange(tq, yq(2011,2), yq(2016,4))
+replace Reg = 1 if tq > yq(2016,4)
+gen RxV = Reg*VolTC_c
+gen RxD = Reg*dolar_c
+newey_nogap rp VolTC_c dolar_c Reg RxV RxD, lag(4)
+test RxV RxD
 
-*==============================================================================*
-* BLOQUE 8.9 - TPM (descriptivo post-2011; Tabla 8.9)
-*   La TPM nace con el regimen (may-2011): no entra como regresor de la ventana
-*   completa (seria colineal con D2011). Fuente: BCP, TPM.xlsx oficial
-*   (data/raw/bcp/TPM.xlsx; serie mensual -> promedio trimestral).
-*==============================================================================*
-di _n(2) "{hline 78}"
-di " 8.9 TPM y tasa CDA en guaranies (descriptivo, post-2011)"
-di "{hline 78}"
-quietly corr i_Gs tpm if !missing(tpm)
-di "   corr(i_Gs, TPM) = " %6.3f r(rho) "   (n=" r(N) ")"
-gen spread_GsTPM = i_Gs - tpm
-summarize spread_GsTPM if !missing(tpm)
-tsline i_Gs tpm if !missing(tpm), lcolor(navy cranberry) lpattern(solid dash)   ///
-    legend(order(1 "CDA <=365d en Gs" 2 "TPM")) title("Tasa CDA en Gs y TPM")   ///
-    name(g_tpm, replace)
-graph export "output/figuras/f5_tpm_iGs.png", replace width(1600)
+* (vii) robustez: dolarizacion REZAGADA un trimestre (mitiga la simultaneidad)
+di as text _n "-- (vii) Dolarizacion rezagada un trimestre --"
+gen Ldolar = L.dolar
+quietly summarize Ldolar if !missing(rp,VolTC,Ldolar), meanonly
+gen Ldolar_c = Ldolar - r(mean)
+gen DxLD = D2011*Ldolar_c
+newey_nogap rp VolTC_c Ldolar_c D2011 DxVolTC DxLD, lag(4)
+test DxVolTC DxLD
 
-*==============================================================================*
-* CIERRE
-*==============================================================================*
-di _n(2) "{hline 78}"
-di " FIN DE LA CORRIDA CANONICA."
-di " Log:     output/log_tesis_cda.log"
-di " Tablas:  output/tablas/   |  Figuras: output/figuras/"
-di " Validacion cruzada independiente (Python): python/corrida_canonica.py"
-di "   -> output/canonica/resultados.json  (misma especificacion, mismos numeros)"
-di "{hline 78}"
+********************************************************************************
+* 11. REPORTE PARA EL WORD (numeros clave, ya calculados arriba, en un solo lugar)
+********************************************************************************
+di as text _n(3) "{hline 70}"
+di " REPORTE PARA EL WORD (copiar a las tablas)"
+di "{hline 70}"
+di as text "FIGURAS en output/figuras/:"
+di "   Figura 8.1 = Figura_8_1_DR.png          (serie del diferencial DR)"
+di "   Figura 8.2 = Figura_8_2_Fisher.png      (descomposicion de Fisher)"
+di "   Figura 8.3 = Figura_8_3_Composicion.png (composicion, ventana movil)"
+di as text _n ">> Modelo central (rp, T2):"
+newey_nogap rp VolTC_c dolar_c D2011 DxVolTC DxDolar, lag(4)
+test DxVolTC DxDolar
+di as result "   ^ WALD pendientes: F=" %5.3f r(F) "  p=" %5.3f r(p) ///
+    "   (NO rechaza estabilidad de pendientes)"
+test D2011 DxVolTC DxDolar
+di as result "   ^ CHOW completo:  F=" %5.2f r(F) "  p=" %5.3f r(p) ///
+    "   (significativo por el NIVEL)"
+di as text _n "Interpretacion central (honesta):"
+di as text " El regimen se asocia a un salto de NIVEL de la prima (+3.9 pp, p<0.001)"
+di as text " y a la recomposicion Fisher inflacion->riesgo; la prueba conjunta de"
+di as text " cambio de pendientes NO rechaza estabilidad (recomposicion interna no"
+di as text " concluyente). Resultado robusto a la definicion? NO: con la serie"
+di as text " ponderada las pendientes cambian -> se declara como sensibilidad."
+
+********************************************************************************
+* 12. CIERRE
+********************************************************************************
+compress
+save "output/base_cda_derivada.dta", replace
+di as text _n "FIN. Log -> output/tesis_cda.log | Figuras -> output/figuras/"
 log close
+********************************************************************************
