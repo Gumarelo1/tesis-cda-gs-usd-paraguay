@@ -4,9 +4,9 @@
 *------------------------------------------------------------------------------*
 *  DO-FILE  STATA 17.  Implementa las 6 etapas del marco metodologico (Seccion 7.2).
 *  NOTA: el modelo nucleo se estima sobre la prima de riesgo rp (SIN inflacion como
-*  regresor, para evitar la circularidad de Fisher). La validacion cruzada
-*  independiente en Python es python/corrida_canonica.py (misma especificacion,
-*  inferencia HAC identica a newey); resultados en output/canonica/.
+*  regresor, para evitar la circularidad de Fisher). El script Python
+*  python/analisis_tesis.py conserva la especificacion previa sobre DR y esta
+*  pendiente de alinearse con este cambio; por eso ya NO es 1:1 con este do-file.
 *------------------------------------------------------------------------------*
 *  COMO CORRERLO:
 *    1) Ajustar la macro `root' (unica edicion manual).
@@ -342,11 +342,7 @@ capture noisily estat sbcusum
 
 di _n "-- Bai-Perron multiple (xtbreak): UDmax/WDmax + fechas con IC --"
 capture noisily xtbreak test DR, breaks(3) hypothesis(3)     // 0 vs <=k, UDmax/WDmax
-capture noisily xtbreak estimate DR, breaks(3)
-* Fechado endogeno de la PRIMA rp (objeto directo de la hipotesis): el quiebre
-* unico cae en 2011Q2, el trimestre de adopcion del regimen (seccion 8.4 del doc).
-capture noisily xtbreak test rp, breaks(3) hypothesis(3)
-capture noisily xtbreak estimate rp, breaks(1)               // fechas endogenas + IC95
+capture noisily xtbreak estimate DR, breaks(3)               // fechas endogenas + IC95
 di as text "  (las fechas de xtbreak estan en el indice colapsado; mapear con: list __tseq fecha)"
 * list __tseq fecha, clean noobs    // <- descomentar para ver el mapa completo
 restore
@@ -387,7 +383,7 @@ newey_nogap rp D2011, lag($HAC)
 estimates store fisher_rp
 newey_nogap InflDiff D2011, lag($HAC)
 estimates store fisher_infl
-newey_nogap difn D2011 if !missing(rp), lag($HAC)   // misma muestra de la descomposicion (n=80): delta=+0.87, p=0.018
+newey_nogap difn D2011, lag($HAC)
 estimates store fisher_difn
 
 capture noisily esttab fisher_rp fisher_infl fisher_difn using "output/tablas/etapa4_fisher_ttest.csv", ///
@@ -624,7 +620,7 @@ newey_nogap rp VolTC Iliq D2011 D_VolTC D_Iliq, lag($HAC)
 test D_VolTC D_Iliq              // pendientes: hay cambio de composicion?
 test D2011 D_VolTC D_Iliq        // Chow completo (nivel + pendientes)
 * Resultado esperado con la base auditada (verificado en Python):
-*   F(pendientes)=0.33 p=0.717 (estables) ; F(Chow)=16.81 p<0.001 (NIVEL) ; D2011=+3.71 p<0.001
+*   F(pendientes)=0.36 p=0.698 (estables) ; F(Chow)=16.81 p<0.001 (NIVEL) ; D2011=+3.71 p<0.001
 *   => VEREDICTO (segun el Wald de interacciones, que es el contraste de
 *      composicion): las PENDIENTES no cambian (p=0.698) -> NO hay evidencia
 *      de recomposicion INTERNA. El Chow significativo refleja el salto de
@@ -651,8 +647,8 @@ gen Iliq_c = Iliq - r(mean)
 gen DxV = D2011*VolTC_c
 gen DxI = D2011*Iliq_c
 newey_nogap rp VolTC_c Iliq_c D2011 DxV DxI, lag($HAC)
-test DxV DxI          // Wald conjunto: F=0.33 p=0.717 (pendientes estables)
-test D2011 DxV DxI    // Chow completo: F=15.55 p<0.001 (cambio de NIVEL)
+test DxV DxI          // Wald conjunto: F=0.36 p=0.698 (pendientes estables)
+test D2011 DxV DxI    // Chow completo: F=16.81 p<0.001 (cambio de NIVEL)
 
 * (2) dominancia post-2011 (estandarizada)
 egen zV = std(VolTC) if !missing(rp, VolTC, Iliq)
@@ -662,7 +658,7 @@ gen DzI = D2011*zI
 newey_nogap rp zV zI D2011 DzV DzI, lag($HAC)
 lincom zV + DzV                  // incidencia post riesgo cambiario: +0.20 sd
 lincom zI + DzI                  // incidencia post iliquidez:        +0.08 sd
-lincom (zI + DzI) - (zV + DzV)   // dominancia: t=-0.29 p=0.781 (indistinguibles)
+lincom (zI + DzI) - (zV + DzV)   // dominancia: t=-0.29 p=0.772 (indistinguibles)
 
 * (3) integracion de todas las series (sobre la muestra contigua de cada una)
 preserve
@@ -708,11 +704,11 @@ quietly summarize L_Iliq if !missing(rp, VolTC, L_Iliq)
 gen LIliq_c = L_Iliq - r(mean)
 gen DxLI = D2011*LIliq_c
 newey_nogap rp VolTC_c LIliq_c D2011 DxV DxLI, lag($HAC)
-test DxV DxLI         // mismo diagnostico: F=0.37 p=0.693
+test DxV DxLI         // mismo diagnostico: F=0.40 p=0.673
 
 * (6) robustez al supuesto de regimen 0/1: indice de intensidad gradual
 *   (0 pre-2011; rampa lineal 2011-2016; 1 desde 2017). La recomposicion se
-*   conjunta no significativa (F=2.09, p=0.131; RxI individual -0.49, p=0.046).
+*   conjunta no significativa (F=2.26, p=0.111; RxI individual -0.49, p=0.038).
 gen Reg = 0
 replace Reg = ((anio-2011)*4 + (trimestre-1) + 1)/24 if anio>=2011 & anio<=2016
 replace Reg = 1 if anio>=2017
@@ -776,7 +772,7 @@ capture drop Crisis0809
 gen Crisis0809 = ((anio==2008 & trimestre>=2) | (anio==2009 & trimestre<=3))
 label var Crisis0809 "Crisis financiera global 2008Q2-2009Q3"
 newey_nogap rp VolTC_c Iliq_c D2011 DxV DxI Crisis0809, lag($HAC)
-*   Resultado: D2011=+3.38 (p<0.001) SOBREVIVE; Crisis0809=-2.07 (p=0.008).
+*   Resultado: D2011=+3.38 (p<0.001) SOBREVIVE; Crisis0809=-2.07 (p=0.006).
 *   El salto de 2011 es robusto a controlar por la crisis => es regimen, no shock.
 
 * --- Robustez (v): sensibilidad al REZAGO HAC (lag 3, 5, 6 ademas de 4) ---
@@ -832,16 +828,16 @@ di _n(2) "{hline 78}"
 * ETAPA 7 (SENSIBILIDAD) - Serie alternativa: promedio ponderado de plazos
 *   Primaria = tramo CDA <=365 dias (fuente unica, sin empalme). La ponderada
 *   (i_*_pond, con empalme 2010/2011 y sesgo de composicion por plazos) se
-*   reestima como sensibilidad: el salto de NIVEL se mantiene (+1.61, p<0.001)
-*   pero las interacciones aparecen significativas (Wald F=5.64, p=0.005).
+*   reestima como sensibilidad: el salto de NIVEL se mantiene (+1.80, p=0.021)
+*   pero las interacciones aparecen significativas (Wald F=6.10, p=0.004).
 *   Declarado: nivel robusto a la definicion; pendientes sensibles a ella.
 *==============================================================================*
 di _n "======= ETAPA 7: sensibilidad a la definicion de la serie ======="
 gen difn_pond = i_Gs_pond - i_USD_pond
 gen rp_pond   = difn_pond - InflDiff
 newey_nogap rp_pond VolTC Iliq D2011 D_VolTC D_Iliq, lag(4)
-test D_VolTC D_Iliq   // ponderada: F=5.64, p=0.005 (vs 0.36/0.698 con <=365)
-newey_nogap rp_pond D2011, lag(4)         // salto de nivel ponderada: +1.61 (p<0.001)
+test D_VolTC D_Iliq   // ponderada: F=6.10, p=0.004 (vs 0.36/0.698 con <=365)
+newey_nogap rp_pond D2011, lag(4)         // salto de nivel ponderada: +1.80 (p=0.021)
 
 di " FIN. Tablas -> output/tablas/  |  Figuras -> output/figuras/"
 di " Comparar numeros con Python (output/python_xcheck.json) para validacion cruzada."
