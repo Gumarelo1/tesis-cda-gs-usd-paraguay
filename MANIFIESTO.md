@@ -6,7 +6,7 @@ Cualquier otro archivo con nombre similar es una versión anterior archivada (ca
 
 | Archivo | SHA-256 |
 |---|---|
-| `Scavone_Fernandez_Tesis_FINAL_2026-07-17.docx` | `ca11e6554c9d909f5c71632eeb0df79933e43c9de7e85cd3dafc91afb2851560` |
+| `Scavone_Fernandez_Tesis_FINAL_2026-07-17.docx` | `2f2c1b25850f684e56388f91874d6f91bc7dcfbac0fe283377011bc78fc9e78e` |
 | `stata/tesis_cda.do` | `9a98a77226af0fd01e2919bfeabcfaf9439ddf53a3017024f838e0823ce649fa` |
 | `python/corrida_canonica.py` | `95ec53c4dec7db70a7ef812cc90f3ccecf6f78f881a4e95cdfb8fc170fcd8012` |
 | `data/processed/base_cda.csv` | `f5700221ca2ccab9389e0e3285b0cfc68d67864ee91bfd4b487ef4087b19631e` |
