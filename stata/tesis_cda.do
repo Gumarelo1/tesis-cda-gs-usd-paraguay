@@ -111,7 +111,20 @@ label var D2011_T1 "Post-regimen (>=2011T1, sensibilidad)"
 * crisis financiera global (quiebre endogeno de DR)
 gen crisis = inrange(tq, yq(2008,2), yq(2009,3))
 * volatilidad cambiaria: sd movil de 8 trimestres
-rangestat (sd) VolTC = dep, interval(tq -7 0)
+capture which rangestat
+if _rc == 0 {
+    rangestat (sd) VolTC = dep, interval(tq -7 0)
+}
+else {
+    * respaldo nativo (no requiere SSC ni internet): las 84 filas son trimestres
+    * contiguos, por lo que la ventana por posicion equivale a la ventana calendario
+    di as text "rangestat no disponible: usando respaldo nativo para VolTC"
+    gen VolTC = .
+    forvalues i = 1/`=_N' {
+        quietly summarize dep in `=max(1,`i'-7)'/`i'
+        if r(N) >= 2 quietly replace VolTC = r(sd) in `i'
+    }
+}
 gen dolar = dolariz                                // proxy de iliquidez/segmentacion
 
 * Chequeo de formulas: la inflacion recalculada coincide con la publicada
