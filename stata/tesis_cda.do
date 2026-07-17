@@ -154,14 +154,8 @@ tabstat difn DR DRcons InflDiff rp, by(D2011) ///
     statistics(n mean sd min p50 max) columns(statistics)
 
 * ===== FIGURA 8.1 del Word: serie del diferencial de retorno DR =====
-tsline DR, lcolor(navy) lwidth(medthick)                                        ///
-    yline(0, lpattern(dash) lcolor(gs9))                                        ///
-    xline(`=yq(2011,2)', lcolor(red) lwidth(medthick))                          ///
-    title("Diferencial de retorno trimestral DR (guaranies vs. dolares)")       ///
-    subtitle("2004–2024; linea roja = adopcion de Metas de Inflacion (2011T2)") ///
-    ytitle("DR (puntos porcentuales, trimestral)") xtitle("")                   ///
-    note("Fuente: elaboracion propia con datos del BCP.")                       ///
-    name(g81, replace)
+* (comando en UNA sola linea: anda igual si se pega en la ventana de comandos)
+tsline DR, lcolor(navy) lwidth(medthick) yline(0, lpattern(dash) lcolor(gs9)) xline(`=yq(2011,2)', lcolor(red) lwidth(medthick)) title("Diferencial de retorno trimestral DR (guaranies vs. dolares)") subtitle("2004-2024; linea roja = adopcion de Metas de Inflacion (2011T2)") ytitle("DR (puntos porcentuales, trimestral)") xtitle("") note("Fuente: elaboracion propia con datos del BCP.") name(g81, replace)
 graph export "output/figuras/Figura_8_1_DR.png", replace width(1600)
 
 ********************************************************************************
@@ -204,15 +198,7 @@ foreach y in rp InflDiff difn {
 }
 
 * ===== FIGURA 8.2 del Word: descomposicion de Fisher (barras pre/post) =====
-graph bar (mean) InflDiff rp if !missing(rp),                                   ///
-    over(D2011, relabel(1 "Pre-2011T2 (2004–2011T1)" 2 "Post-2011T2 (2011T2–2024)")) ///
-    bar(1, color(navy)) bar(2, color(cranberry))                                ///
-    blabel(bar, format(%4.2f) size(small))                                      ///
-    ytitle("puntos porcentuales anuales") yline(0, lcolor(gs9))                 ///
-    legend(order(1 "Prima de inflacion (InflDiff)" 2 "Prima de riesgo (rp)"))   ///
-    title("Descomposicion de Fisher del diferencial nominal")                   ///
-    note("Fuente: elaboracion propia con datos del BCP y FRED.")                ///
-    name(g82, replace)
+graph bar (mean) InflDiff rp if !missing(rp), over(D2011, relabel(1 "Pre-2011T2" 2 "Post-2011T2")) bar(1, color(navy)) bar(2, color(cranberry)) blabel(bar, format(%4.2f) size(small)) ytitle("puntos porcentuales anuales") yline(0, lcolor(gs9)) legend(order(1 "Prima de inflacion (InflDiff)" 2 "Prima de riesgo (rp)")) title("Descomposicion de Fisher del diferencial nominal") note("Fuente: elaboracion propia con datos del BCP y FRED.") name(g82, replace)
 graph export "output/figuras/Figura_8_2_Fisher.png", replace width(1600)
 
 ********************************************************************************
@@ -263,6 +249,9 @@ foreach y in DR rp {
         di as text "  (fechas de xtbreak en indice colapsado; DR->crisis 2008T2 ; rp->2011T2)"
     restore
 }
+* Diferencia de medias de DR pre/post 2011T2 (prueba t con HAC)
+di as text _n "-- Diferencia de medias DR pre/post 2011T2 (HAC) --"
+newey_nogap DR D2011, lag(4)
 
 ********************************************************************************
 * 8. ETAPA 5-BIS — COMPOSICION INTERNA DE LA PRIMA (Shapley/LMG) + FIGURA 8.3
@@ -285,6 +274,12 @@ foreach d in 0 1 {
     local per = cond(`d'==0, "Pre-2011T2 ", "Post-2011T2")
     di as result "  `per': R2=" %5.3f r2b "  %VolTC=" %5.1f 100*cv/(cv+ci) ///
         "%  %Iliq=" %5.1f 100*ci/(cv+ci) "%"
+}
+* correlacion simple rp-dolarizacion por subperiodo (Seccion 8.7 del Word)
+di as text "-- Correlacion rp-dolarizacion por subperiodo --"
+foreach d in 0 1 {
+    quietly corr rp dolar if D2011==`d'
+    di as result "  D2011=`d': corr(rp,dolar)=" %6.3f r(rho) "  (n=" r(N) ")"
 }
 * (b) dominancia estandarizada post-2011: incidencia de cada factor en desvios std
 egen zV = std(VolTC) if sample_main
@@ -317,14 +312,7 @@ preserve
         quietly replace pctIliq = 100*ci/(cv+ci) in `i'
     }
     quietly tsset tq
-    tsline pctVol pctIliq, lcolor(cranberry navy) lwidth(medthick medthick)      ///
-        yline(50, lpattern(dot) lcolor(gs9))                                     ///
-        xline(`=yq(2011,2)', lcolor(black) lpattern(dash))                       ///
-        title("Composicion de la prima de riesgo (ventana movil de 20 trimestres)") ///
-        subtitle("linea negra = adopcion de Metas de Inflacion (2011T2)")        ///
-        ytitle("% del R2 explicado") xtitle("Trimestre (fin de ventana)")        ///
-        legend(order(1 "Riesgo cambiario (VolTC)" 2 "Iliquidez/dolarizacion"))   ///
-        note("Fuente: elaboracion propia.") name(g83, replace)
+    tsline pctVol pctIliq, lcolor(cranberry navy) lwidth(medthick medthick) yline(50, lpattern(dot) lcolor(gs9)) xline(`=yq(2011,2)', lcolor(black) lpattern(dash)) title("Composicion de la prima de riesgo (ventana movil de 20 trimestres)") subtitle("linea negra = adopcion de Metas de Inflacion (2011T2)") ytitle("% del R2 explicado") xtitle("Trimestre (fin de ventana)") legend(order(1 "Riesgo cambiario (VolTC)" 2 "Iliquidez/dolarizacion")) note("Fuente: elaboracion propia.") name(g83, replace)
     graph export "output/figuras/Figura_8_3_Composicion.png", replace width(1600)
 restore
 
@@ -409,6 +397,25 @@ gen DxDp = D2011*dolar_cp
 newey_nogap rp_pond VolTC_cp dolar_cp D2011 DxVp DxDp, lag(4)
 test DxVp DxDp
 newey_nogap rp_pond D2011, lag(4)          // salto de nivel con la ponderada
+
+* (vi) robustez: indicadora GRADUAL del regimen (rampa lineal 2011T2-2016; 1 desde 2017)
+di as text _n "-- (vi) Regimen gradual (rampa 2011T2-2016T4) --"
+gen Reg = 0
+replace Reg = (tq - yq(2011,2) + 1)/(yq(2016,4) - yq(2011,2) + 1) if inrange(tq, yq(2011,2), yq(2016,4))
+replace Reg = 1 if tq > yq(2016,4)
+gen RxV = Reg*VolTC_c
+gen RxD = Reg*dolar_c
+newey_nogap rp VolTC_c dolar_c Reg RxV RxD, lag(4)
+test RxV RxD
+
+* (vii) robustez: dolarizacion REZAGADA un trimestre (mitiga la simultaneidad)
+di as text _n "-- (vii) Dolarizacion rezagada un trimestre --"
+gen Ldolar = L.dolar
+quietly summarize Ldolar if !missing(rp,VolTC,Ldolar), meanonly
+gen Ldolar_c = Ldolar - r(mean)
+gen DxLD = D2011*Ldolar_c
+newey_nogap rp VolTC_c Ldolar_c D2011 DxVolTC DxLD, lag(4)
+test DxVolTC DxLD
 
 ********************************************************************************
 * 11. REPORTE PARA EL WORD (numeros clave, ya calculados arriba, en un solo lugar)
